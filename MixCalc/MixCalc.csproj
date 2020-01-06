@@ -235,10 +235,16 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConfigModel.cs" />
+    <Compile Include="MixCalcService.cs" />
+    <Compile Include="OpcClient.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\.editorconfig">
+      <Link>.editorconfig</Link>
+    </None>
     <None Include="App.config" />
     <None Include="packages.config" />
   </ItemGroup>

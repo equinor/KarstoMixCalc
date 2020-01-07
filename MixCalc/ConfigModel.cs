@@ -211,4 +211,10 @@ namespace PhaseOptDcs
             return (result);
         }
     }
+
+    public class TimeStampedMeasurement: Measurement
+    {
+        [XmlIgnore]
+        public DateTime TimeStamp { get; set; }
+    }
 }

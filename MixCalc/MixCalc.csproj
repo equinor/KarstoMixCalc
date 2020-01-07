@@ -242,6 +242,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ConfigModel.cs" />
+    <Compile Include="DataAccess.cs" />
     <Compile Include="MixCalcService.cs" />
     <Compile Include="OpcClient.cs" />
     <Compile Include="Program.cs" />

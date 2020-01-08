@@ -28,7 +28,7 @@ FROM
     History
 WHERE
     {tagList}
-    AND abs(CAST(strftime('%s', '{TimeStamp.ToString("yyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}') AS NUMERIC) - CAST(strftime('%s', TimeStamp) AS NUMERIC)) < {Threshold}";
+    AND abs(CAST(strftime('%s', '{TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}') AS NUMERIC) - CAST(strftime('%s', TimeStamp) AS NUMERIC)) < {Threshold}";
 
             using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
             {
@@ -42,6 +42,40 @@ WHERE
 
             return resultValues;
         }
+
+        public static int StoreValue(List<PhaseOptDcs.TimeStampedMeasurement> Value)
+        {
+            string query = "INSERT INTO History (Tag, Value, TimeStamp) VALUES (@Tag, @Value, @TimeStamp);";
+
+            using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
+            {
+                con.Open();
+
+                var affectedRows = con.Execute(query, Value);
+
+                return affectedRows;
+            }
+        }
+
+        public static int ClearHistory(System.DateTime TimeStamp)
+        {
+            string query = $@"DELETE
+FROM
+    History
+WHERE
+    CAST(strftime('%s', TimeStamp) AS NUMERIC) < CAST(strftime('%s', '{TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)}') AS NUMERIC)";
+
+            using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
+            {
+                con.Open();
+
+                var affectedRows = con.Execute(query);
+
+                return affectedRows;
+            }
+
+        }
+
         private static string LoadConnectionString(string id = "Default")
         {
             return ConfigurationManager.ConnectionStrings[id].ConnectionString;

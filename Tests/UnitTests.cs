@@ -72,5 +72,14 @@ namespace Tests
             int clearedRows = MixCalc.DataAccess.ClearHistory(new System.DateTime(2019, 09, 11, 12, 00, 00));
             Assert.AreEqual(storedRows, clearedRows);
         }
+
+        [TestMethod]
+        public void DataAccess_GetValue_Exception()
+        {
+            System.DateTime ts = new System.DateTime(2019, 11, 25, 18, 35, 18);
+            List<string> tagList = null;
+            System.Action getValue = () => MixCalc.DataAccess.GetValue(tagList, ts);
+            Assert.ThrowsException<System.Exception>(getValue);
+        }
     }
 }

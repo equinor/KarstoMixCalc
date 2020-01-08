@@ -9,13 +9,17 @@ using System.Linq;
 
 namespace MixCalc
 {
-    public class DataAccess
+    public static class DataAccess
     {
         public static List<double> GetValue(List<string> Tag, DateTime TimeStamp, int Threshold = 360)
         {
+            if (Tag is null)
+            {
+                throw new System.Exception("Tag can not be null");
+            }
             List<double> resultValues = new List<double>();
             string tagList = "(FALSE";
-            foreach (var item in Tag)
+            foreach (string item in Tag)
             {
                 tagList += "\n OR Tag = '" + item + "'";
             }

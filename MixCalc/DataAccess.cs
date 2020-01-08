@@ -36,7 +36,7 @@ WHERE
 
             using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
             {
-                var values = con.Query<PhaseOptDcs.TimeStampedMeasurement>(query, new DynamicParameters());
+                var values = con.Query<MixCalc.TimeStampedMeasurement>(query, new DynamicParameters());
 
                 foreach (var tagItem in Tag)
                 {
@@ -47,7 +47,7 @@ WHERE
             return resultValues;
         }
 
-        public static int StoreValue(List<PhaseOptDcs.TimeStampedMeasurement> Value)
+        public static int StoreValue(List<MixCalc.TimeStampedMeasurement> Value)
         {
             string query = "INSERT INTO History (Tag, Value, TimeStamp) VALUES (@Tag, @Value, @TimeStamp);";
 
@@ -85,7 +85,7 @@ WHERE
             return ConfigurationManager.ConnectionStrings[id].ConnectionString;
         }
 
-        private static double Interpolate(List<PhaseOptDcs.TimeStampedMeasurement> Values, DateTime TimeStamp)
+        private static double Interpolate(List<MixCalc.TimeStampedMeasurement> Values, DateTime TimeStamp)
         {
             double resultValue;
             if (Values.ToList().Count == 0)
@@ -99,8 +99,8 @@ WHERE
             else
             {
 
-                PhaseOptDcs.TimeStampedMeasurement m0 = new PhaseOptDcs.TimeStampedMeasurement();
-                PhaseOptDcs.TimeStampedMeasurement m1 = new PhaseOptDcs.TimeStampedMeasurement();
+                MixCalc.TimeStampedMeasurement m0 = new MixCalc.TimeStampedMeasurement();
+                MixCalc.TimeStampedMeasurement m1 = new MixCalc.TimeStampedMeasurement();
                 double nearestBefore = Double.MaxValue;
                 double nearestAfter = Double.MaxValue;
                 foreach (var v in Values)

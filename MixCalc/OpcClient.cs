@@ -5,7 +5,7 @@ using System;
 using System.Globalization;
 using System.Threading.Tasks;
 
-namespace PhaseOptDcs
+namespace MixCalc
 {
     class OpcClient : IDisposable
     {
@@ -48,9 +48,9 @@ namespace PhaseOptDcs
 
                 ApplicationInstance application = new ApplicationInstance
                 {
-                    ApplicationName = "PhaseOptDcs Client",
+                    ApplicationName = "MixCalc Client",
                     ApplicationType = ApplicationType.Client,
-                    ConfigSectionName = "PhaseOptDcs_Client"
+                    ConfigSectionName = "MixCalc_Client"
                 };
 
                 // load the application configuration.

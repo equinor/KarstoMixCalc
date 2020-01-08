@@ -30,12 +30,12 @@ namespace Tests
         [TestMethod]
         public void DataAccess_StoreValue()
         {
-            List<PhaseOptDcs.TimeStampedMeasurement> value = new List<PhaseOptDcs.TimeStampedMeasurement>();
+            List<MixCalc.TimeStampedMeasurement> value = new List<MixCalc.TimeStampedMeasurement>();
 
             int rows = 5;
             for (int i = 0; i < rows; i++)
             {
-                value.Add(new PhaseOptDcs.TimeStampedMeasurement()
+                value.Add(new MixCalc.TimeStampedMeasurement()
                 {
                     Tag = $@"TestTag{i}",
                     Value = 7357.749,
@@ -53,12 +53,12 @@ namespace Tests
         [TestMethod]
         public void DataAccess_ClearHistory()
         {
-            List<PhaseOptDcs.TimeStampedMeasurement> value = new List<PhaseOptDcs.TimeStampedMeasurement>();
+            List<MixCalc.TimeStampedMeasurement> value = new List<MixCalc.TimeStampedMeasurement>();
 
             int rows = 5;
             for (int i = 0; i < rows; i++)
             {
-                value.Add(new PhaseOptDcs.TimeStampedMeasurement()
+                value.Add(new MixCalc.TimeStampedMeasurement()
                 {
                     Tag = $@"TestTag{i}",
                     Value = 7357.749,

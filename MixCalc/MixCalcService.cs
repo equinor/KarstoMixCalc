@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Timers;
 
-namespace PhaseOptDcs
+namespace MixCalc
 {
-    class PhaseOptDcsService : IDisposable
+    class MixCalcService : IDisposable
     {
         private readonly Timer timer;
         private readonly ConfigModel config;
@@ -14,10 +14,10 @@ namespace PhaseOptDcs
         private static readonly NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
         private readonly object WorkerLock = new object();
 
-        public PhaseOptDcsService()
+        public MixCalcService()
         {
-            logger.Info("Initializing PhaseOptDcsService.");
-            string ConfigFile = AppDomain.CurrentDomain.BaseDirectory.ToString(CultureInfo.InvariantCulture) + "PhaseOptDcs.config";
+            logger.Info("Initializing MixCalcService.");
+            string ConfigFile = AppDomain.CurrentDomain.BaseDirectory.ToString(CultureInfo.InvariantCulture) + "MixCalc.config";
             logger.Debug(CultureInfo.InvariantCulture, "Reading configuration from {0}.", ConfigFile);
             try
             {

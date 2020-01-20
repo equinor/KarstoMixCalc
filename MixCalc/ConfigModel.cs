@@ -27,6 +27,10 @@ namespace MixCalc
         [XmlElement]
         public string OpcPassword { get; set; }
 
+        [XmlElement]
+        public MeasurementList HistoryMeasurements { get; set; } = new MeasurementList();
+
+
         public static ConfigModel ReadConfig(string file)
         {
             XmlReaderSettings readerSettings = new XmlReaderSettings
@@ -43,6 +47,31 @@ namespace MixCalc
 
             return result;
         }
+    }
+
+    public class StreamList
+    {
+        public StreamList() { Item = new List<Stream>(); }
+        [XmlElement("Stream")]
+        public List<Stream> Item { get; }
+    }
+
+    public class Stream
+    {
+        [XmlAttribute]
+        public string Name { get; set; }
+
+        [XmlElement]
+        public CompositionList Composition { get; set; } = new CompositionList();
+    }
+
+    public class MeasurementList
+    {
+        public MeasurementList() { Item = new List<TimeStampedMeasurement>(); }
+        [XmlElement("Measurement")]
+        public List<TimeStampedMeasurement> Item { get; }
+        [XmlAttribute]
+        public double MaxAge { get; set; }
     }
 
     public class CompositionList

@@ -30,6 +30,9 @@ namespace MixCalc
         [XmlElement]
         public MeasurementList HistoryMeasurements { get; set; } = new MeasurementList();
 
+        [XmlElement]
+        public MeasurementList AsgardMeasurements { get; set; } = new MeasurementList();
+
 
         public static ConfigModel ReadConfig(string file)
         {

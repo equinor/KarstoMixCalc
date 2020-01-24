@@ -71,6 +71,11 @@ namespace MixCalc
                 nodes.Add(item.Tag); types.Add(typeof(object));
             }
 
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                nodes.Add(item.Tag); types.Add(typeof(object));
+            }
+
             foreach (var item in nodes)
             {
                 logger.Debug(CultureInfo.InvariantCulture, "Item to read: \"{0}\"", item.ToString());
@@ -102,6 +107,14 @@ namespace MixCalc
                     meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
             }
 
+            foreach (var meas in config.AsgardMeasurements.Item)
+            {
+                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                meas.TimeStamp = DateTime.Now;
+                logger.Debug(CultureInfo.InvariantCulture,
+                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+            }
         }
 
         private void StoreHistoryMeasurements()
@@ -122,7 +135,51 @@ namespace MixCalc
             {
                 logger.Error(e, "Error writing to History database");
             }
+        }
 
+        private void CalculateAsgardVolumeFlow()
+        {
+            double massFlowBeforeXover = 0.0;
+            double densityBeforeXover = 0.0;
+            double massFlowXover = 0.0;
+            double density = 0.0;
+
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                switch (item.Name)
+                {
+                    case "Åsgard Mass flow før x-over":
+                        massFlowBeforeXover = item.Value;
+                        break;
+                    case "Åsgard Density før x-over":
+                        densityBeforeXover = item.Value;
+                        break;
+                    case "Åsgard Mass flow x-over AT->ST":
+                        massFlowXover = item.Value;
+                        break;
+                    case "Åsgard Density":
+                        density = item.Value;
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            // Convert from mass flow to diff pressure [mbar]
+            double dp = Math.Pow(massFlowBeforeXover * Math.Sqrt(350.0) / 3105.0, 2.0);
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard diff pressure before x-over {0} mbar", dp);
+
+            // Calculate mass flow before x-over [t/h]
+            massFlowBeforeXover = 1312.0 * Math.Sqrt(densityBeforeXover * dp * 100.0) / 1000.0;
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard corrected mass flow before x-over {0} t/h", massFlowBeforeXover);
+
+            // Calculate Åsgard mass flow [t/h]
+            double asgardMassFlow = massFlowBeforeXover + massFlowXover;
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard mass flow {0} t/h", asgardMassFlow);
+
+            // Calculate Åsgard volume flow [m³/h]
+            double asgardVolumeFlow = 1000.0 * asgardMassFlow / density;
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard volume flow {0} m³/h", dp);
         }
 
         private void WriteToOPC()

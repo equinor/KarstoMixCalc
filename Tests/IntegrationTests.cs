@@ -27,6 +27,11 @@ namespace Tests
             config.HistoryMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard CO2", Tag = "31AI0161A_K" });
             config.HistoryMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard N2", Tag = "31AI0161A_J" });
 
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Mass flow før x-over", Tag = "20FI5506" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Density før x-over", Tag = "15DY2038" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Mass flow x-over AT->ST", Tag = "15FI5701SM" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Density", Tag = "15FI5701SM" });
+
             XmlWriterSettings writerSettings = new XmlWriterSettings
             {
                 Indent = true,

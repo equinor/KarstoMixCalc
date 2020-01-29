@@ -47,6 +47,26 @@ WHERE
             return resultValues;
         }
 
+        public static IEnumerable<MixCalc.TimeStampedMeasurement> GetValueSet(string Tag)
+        {
+            if (Tag is null)
+            {
+                throw new System.Exception("Tag can not be null");
+            }
+            string query = $@"SELECT
+    Tag, TimeStamp, Value
+FROM
+    History
+WHERE
+    Tag = '{Tag}'
+ORDER BY TimeStamp DESC";
+
+            using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
+            {
+                return con.Query<MixCalc.TimeStampedMeasurement>(query, new DynamicParameters());
+            }
+        }
+
         public static int StoreValue(List<MixCalc.TimeStampedMeasurement> Value)
         {
             string query = "INSERT INTO History (Tag, Value, TimeStamp) VALUES (@Tag, @Value, @TimeStamp);";

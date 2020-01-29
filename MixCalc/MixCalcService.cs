@@ -55,6 +55,7 @@ namespace MixCalc
                 ReadFromOPC();
                 StoreHistoryMeasurements();
                 CalculateVolumeFlow();
+                CalculateDelays();
                 WriteToOPC();
             }
         }
@@ -77,6 +78,69 @@ namespace MixCalc
                 }
             }
         }
+
+        private void CalculateDelays()
+        {
+            double asgardPipeVolume = 18085.0;
+            double statpipePipeVolume = 7901.0;
+            string asgardTag = "";
+            string statpipeTag = "";
+
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                if (item.Name == "Åsgard Volume flow")
+                {
+                    asgardTag = item.Tag;
+                }
+            }
+
+            foreach (var item in config.StatpipeMeasurements.Item)
+            {
+                if (item.Name == "Statpipe Volume flow")
+                {
+                    statpipeTag = item.Tag;
+                }
+            }
+
+            TimeSpan asgardDelay = CalculateDelay(asgardTag, asgardPipeVolume);
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard delay: {0} h", asgardDelay.TotalHours);
+
+            TimeSpan statpipeDelay = CalculateDelay(statpipeTag, statpipePipeVolume);
+            logger.Debug(CultureInfo.InvariantCulture, "Statpipe delay: {0} h", statpipeDelay.TotalHours);
+        }
+
+        private TimeSpan CalculateDelay(string Tag, double PipeVolume)
+        {
+            DateTime timeStamp = DateTime.Now;
+            int i = 1;
+            DateTime t0 = DateTime.Now;
+            double volume = 0.0;
+            foreach (var m in DataAccess.GetValueSet(Tag))
+            {
+                if (i == 1)
+                {
+                    t0 = m.TimeStamp;
+                    i++;
+                    volume += m.Value;
+                    continue;
+                }
+
+                volume += m.Value;
+                double accumulatedVolume = (volume / (double)i) * (t0 - m.TimeStamp).TotalHours;
+
+                logger.Debug(CultureInfo.InvariantCulture, "{0} accumulated volume: {1}, delay: {2}", Tag, accumulatedVolume, (t0 - m.TimeStamp).TotalHours);
+
+                if (accumulatedVolume > PipeVolume)
+                {
+                    timeStamp = m.TimeStamp;
+                    break;
+                }
+                i++;
+            }
+
+            return (t0 - timeStamp);
+        }
+
         private void ReadFromOPC()
         {
             NodeIdCollection nodes = new NodeIdCollection();

@@ -99,5 +99,52 @@ namespace Tests
             System.Action getValue = () => MixCalc.DataAccess.GetValue(tagList, ts);
             Assert.ThrowsException<System.Exception>(getValue);
         }
+
+        [TestMethod]
+        public void DataAccess_GetValueSet()
+        {
+            List<MixCalc.TimeStampedMeasurement> value = new List<MixCalc.TimeStampedMeasurement>();
+
+            int rows = 5;
+            for (int i = 0; i < rows; i++)
+            {
+                value.Add(new MixCalc.TimeStampedMeasurement()
+                {
+                    Tag = "TestFlowTag",
+                    Value = 7357.749,
+                    TimeStamp = System.DateTime.Now - (new System.TimeSpan(0, 0, i * 20))
+                });
+            }
+
+            int storedRows = MixCalc.DataAccess.StoreValue(value);
+
+            double asgardPipeVolume = 18085.0;
+            double accumulatedVolume = 0.0;
+            System.DateTime asgardTimeStamp;
+
+            int j = 1;
+            System.DateTime t0 = System.DateTime.Now;
+            double volume = 0.0;
+            foreach (var m in MixCalc.DataAccess.GetValueSet("TestFlowTag"))
+            {
+                if (j == 1)
+                {
+                    t0 = m.TimeStamp;
+                    j++;
+                    volume += m.Value;
+                    continue;
+                }
+
+                volume += m.Value;
+                accumulatedVolume = (volume / (double)j) * (t0 - m.TimeStamp).TotalHours;
+
+                if (accumulatedVolume > asgardPipeVolume)
+                {
+                    asgardTimeStamp = m.TimeStamp;
+                    break;
+                }
+                j++;
+            }
+        }
     }
 }

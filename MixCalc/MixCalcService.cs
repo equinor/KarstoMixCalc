@@ -54,10 +54,29 @@ namespace MixCalc
             {
                 ReadFromOPC();
                 StoreHistoryMeasurements();
+                CalculateVolumeFlow();
                 WriteToOPC();
             }
         }
 
+        private void CalculateVolumeFlow()
+        {
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                if (item.Name == "Åsgard Volume flow")
+                {
+                    item.Value = CalculateAsgardVolumeFlow();
+                }
+            }
+
+            foreach (var item in config.StatpipeMeasurements.Item)
+            {
+                if (item.Name == "Statpipe Volume flow")
+                {
+                    item.Value = CalculateStatpipeVolumeFlow();
+                }
+            }
+        }
         private void ReadFromOPC()
         {
             NodeIdCollection nodes = new NodeIdCollection();
@@ -72,6 +91,11 @@ namespace MixCalc
             }
 
             foreach (var item in config.AsgardMeasurements.Item)
+            {
+                nodes.Add(item.Tag); types.Add(typeof(object));
+            }
+
+            foreach (var item in config.StatpipeMeasurements.Item)
             {
                 nodes.Add(item.Tag); types.Add(typeof(object));
             }
@@ -115,6 +139,15 @@ namespace MixCalc
                     "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
                     meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
             }
+
+            foreach (var meas in config.StatpipeMeasurements.Item)
+            {
+                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                meas.TimeStamp = DateTime.Now;
+                logger.Debug(CultureInfo.InvariantCulture,
+                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+            }
         }
 
         private void StoreHistoryMeasurements()
@@ -137,12 +170,13 @@ namespace MixCalc
             }
         }
 
-        private void CalculateAsgardVolumeFlow()
+        private double CalculateAsgardVolumeFlow()
         {
             double massFlowBeforeXover = 0.0;
             double densityBeforeXover = 0.0;
             double massFlowXover = 0.0;
-            double density = 0.0;
+            double densityKarsto = 0.0;
+            double densityKalsto = 0.0;
 
             foreach (var item in config.AsgardMeasurements.Item)
             {
@@ -154,11 +188,14 @@ namespace MixCalc
                     case "Åsgard Density før x-over":
                         densityBeforeXover = item.Value;
                         break;
-                    case "Åsgard Mass flow x-over AT->ST":
+                    case "Åsgard Mass flow x-over":
                         massFlowXover = item.Value;
                         break;
-                    case "Åsgard Density":
-                        density = item.Value;
+                    case "Åsgard Density Kårstø":
+                        densityKarsto = item.Value;
+                        break;
+                    case "Åsgard Density Kalstø":
+                        densityKalsto = item.Value;
                         break;
                     default:
                         break;
@@ -177,15 +214,89 @@ namespace MixCalc
             double asgardMassFlow = massFlowBeforeXover + massFlowXover;
             logger.Debug(CultureInfo.InvariantCulture, "Åsgard mass flow {0} t/h", asgardMassFlow);
 
+            // Calculate average density
+            double density = (densityKalsto + densityKarsto) / 2.0;
             // Calculate Åsgard volume flow [m³/h]
             double asgardVolumeFlow = 1000.0 * asgardMassFlow / density;
-            logger.Debug(CultureInfo.InvariantCulture, "Åsgard volume flow {0} m³/h", dp);
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard volume flow {0} m³/h", asgardVolumeFlow);
+
+            return asgardVolumeFlow;
+        }
+
+        private double CalculateStatpipeVolumeFlow()
+        {
+            double massFlowXover = 0.0;
+            double massFlowXoverSTP = 0.0;
+            double densityKarsto = 0.0;
+            double densityKalsto = 0.0;
+
+            foreach (var item in config.StatpipeMeasurements.Item)
+            {
+                switch (item.Name)
+                {
+                    case "Statpipe Mass flow x-over":
+                        massFlowXover = item.Value;
+                        break;
+                    case "Statpipe Mass flow x-over STP":
+                        massFlowXoverSTP = item.Value;
+                        break;
+                    case "Statpipe Density Kårstø":
+                        densityKarsto = item.Value;
+                        break;
+                    case "Statpipe Density Kalstø":
+                        densityKalsto = item.Value;
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+            // Sum mass flows [t/h]
+            if (massFlowXoverSTP < 0.0)
+            {
+                massFlowXoverSTP = 0.0;
+            }
+            double massFlow = massFlowXover + massFlowXoverSTP;
+
+            // Calculate average density
+            double density = (densityKalsto + densityKarsto) / 2.0;
+            // Calculate Statpipe volume flow [m³/h]
+            double statpipeVolumeFlow = 1000.0 * massFlow / density;
+            logger.Debug(CultureInfo.InvariantCulture, "Statpipe volume flow {0} m³/h", statpipeVolumeFlow);
+
+            return statpipeVolumeFlow;
         }
 
         private void WriteToOPC()
         {
             // Make a list of all the OPC item that we want to write
             WriteValueCollection wvc = new WriteValueCollection();
+
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                if (!string.IsNullOrEmpty(item.Type))
+                {
+                    wvc.Add(new WriteValue()
+                    {
+                        NodeId = item.Tag,
+                        AttributeId = Attributes.Value,
+                        Value = new DataValue { Value = item.GetTypedValue() }
+                    });
+                }
+            }
+
+            foreach (var item in config.StatpipeMeasurements.Item)
+            {
+                if (!string.IsNullOrEmpty(item.Type))
+                {
+                    wvc.Add(new WriteValue()
+                    {
+                        NodeId = item.Tag,
+                        AttributeId = Attributes.Value,
+                        Value = new DataValue { Value = item.GetTypedValue() }
+                    });
+                }
+            }
 
             foreach (var item in wvc)
             {

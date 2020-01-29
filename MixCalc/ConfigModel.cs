@@ -33,6 +33,9 @@ namespace MixCalc
         [XmlElement]
         public MeasurementList AsgardMeasurements { get; set; } = new MeasurementList();
 
+        [XmlElement]
+        public MeasurementList StatpipeMeasurements { get; set; } = new MeasurementList();
+
 
         public static ConfigModel ReadConfig(string file)
         {
@@ -150,6 +153,22 @@ namespace MixCalc
 
         [XmlIgnore]
         public double Value { get; set; }
+
+        public object GetTypedValue()
+        {
+            if (Type == "single")
+            {
+                return Convert.ToSingle(Value);
+            }
+            else if (Type == "double")
+            {
+                return Convert.ToDouble(Value);
+            }
+            else
+            {
+                return Convert.ToDouble(Value);
+            }
+        }
     }
 
     public class PressureMeasurement : Measurement

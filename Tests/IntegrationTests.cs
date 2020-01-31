@@ -33,12 +33,14 @@ namespace Tests
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Density Karsto", Tag = "15DY2038" });
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Density Kalsto", Tag = "31DY0161" });
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Volume flow", Tag = "31FI2038V", Type = "double" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Transport time", Tag = "31KY2038", Type = "double" });
 
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Mass flow x-over", Tag = "20FI7195DM" });
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Mass flow x-over STP", Tag = "15FY0105" });
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Density Karsto", Tag = "31DY0004" });
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Density Kalsto", Tag = "31DY0157" });
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Volume flow", Tag = "31FI035V", Type = "double" });
+            config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Transport time", Tag = "31KY035", Type = "double" });
 
             XmlWriterSettings writerSettings = new XmlWriterSettings
             {

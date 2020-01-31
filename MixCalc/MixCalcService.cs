@@ -107,6 +107,22 @@ namespace MixCalc
 
             TimeSpan statpipeDelay = CalculateDelay(statpipeTag, statpipePipeVolume);
             logger.Debug(CultureInfo.InvariantCulture, "Statpipe delay: {0} h", statpipeDelay.TotalHours);
+
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                if (item.Name == "Åsgard Transport time")
+                {
+                    item.Value = asgardDelay.TotalHours;
+                }
+            }
+
+            foreach (var item in config.StatpipeMeasurements.Item)
+            {
+                if (item.Name == "Statpipe Transport time")
+                {
+                    item.Value = statpipeDelay.TotalHours;
+                }
+            }
         }
 
         private TimeSpan CalculateDelay(string Tag, double PipeVolume)

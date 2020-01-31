@@ -35,6 +35,9 @@ namespace Tests
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Volume flow", Tag = "31FI2038V", Type = "double" });
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard Transport time", Tag = "31KY2038", Type = "double" });
 
+            config.AsgardComposition.Item.Add(new MixCalc.Component { Name = "Åsgard CO2", Tag = "31AI0161A_K", ScaleFactor = 0.01, WriteTag = "31AY0161A_K", Type = "double" });
+            config.AsgardComposition.Item.Add(new MixCalc.Component { Name = "Åsgard N2", Tag = "31AI0161A_J", ScaleFactor = 0.01, WriteTag = "31AY0161A_J", Type = "double" });
+
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Mass flow x-over", Tag = "20FI7195DM" });
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Mass flow x-over STP", Tag = "15FY0105" });
             config.StatpipeMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe Density Karsto", Tag = "31DY0004" });

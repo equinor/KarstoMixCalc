@@ -34,8 +34,13 @@ namespace MixCalc
         public MeasurementList AsgardMeasurements { get; set; } = new MeasurementList();
 
         [XmlElement]
+        public CompositionList AsgardComposition { get; set; } = new CompositionList();
+
+        [XmlElement]
         public MeasurementList StatpipeMeasurements { get; set; } = new MeasurementList();
 
+        [XmlElement]
+        public CompositionList StatpipeComposition { get; set; } = new CompositionList();
 
         public static ConfigModel ReadConfig(string file)
         {
@@ -121,6 +126,18 @@ namespace MixCalc
 
             return vs.ToArray();
         }
+
+        public string[] GetTags()
+        {
+            List<string> vs = new List<string>();
+
+            foreach (var component in Item)
+            {
+                vs.Add(component.Tag);
+            }
+
+            return vs.ToArray();
+        }
     }
 
     public class Component
@@ -133,8 +150,15 @@ namespace MixCalc
         public string Tag { get; set; }
         [XmlAttribute]
         public double ScaleFactor { get; set; }
+        [XmlAttribute]
+        public string WriteTag { get; set; }
+        [XmlAttribute]
+        public string Type { get; set; }
+
         [XmlIgnore]
         public double Value { get; set; }
+        [XmlIgnore]
+        public double WriteValue { get; set; }
 
         public double GetScaledValue()
         {

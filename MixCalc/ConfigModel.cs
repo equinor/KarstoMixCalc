@@ -42,6 +42,12 @@ namespace MixCalc
         [XmlElement]
         public CompositionList StatpipeComposition { get; set; } = new CompositionList();
 
+        [XmlElement]
+        public CompositionList T400Composition { get; set; } = new CompositionList();
+
+        [XmlElement]
+        public CompositionList T100Composition { get; set; } = new CompositionList();
+
         public static ConfigModel ReadConfig(string file)
         {
             XmlReaderSettings readerSettings = new XmlReaderSettings

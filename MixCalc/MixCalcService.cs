@@ -14,6 +14,11 @@ namespace MixCalc
         private static readonly NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
         private readonly object WorkerLock = new object();
 
+        private double AsgardMolFlow = 0.0;
+        private double StatpipeMolFlow = 0.0;
+        private double T100MolFlow = 0.0;
+        private double StatpipeXoverMolFlow = 0.0;
+
         public MixCalcService()
         {
             logger.Info("Initializing MixCalcService.");
@@ -59,6 +64,7 @@ namespace MixCalc
                     CalculateVolumeFlow();
                     CalculateDelays();
                     ReadDelayedComposition();
+                    CalculateMix();
                     WriteToOPC();
                 }
                 catch (Exception e)
@@ -68,9 +74,114 @@ namespace MixCalc
             }
         }
 
+        private void CalculateMix()
+        {
+            // Calculate mol flows
+            var asgardDelay = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time"));
+            var asgardFlow = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow før x-over")).Tag },
+                DateTime.Now.AddHours(-asgardDelay.Value));
+            var asgardMolWeight = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard molweight")).Tag },
+                DateTime.Now.AddHours(-asgardDelay.Value));
+
+            AsgardMolFlow = asgardFlow[0] * 1000.0 / asgardMolWeight[0]; // [mol/h]
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard mol flow: {0} mol/h", AsgardMolFlow);
+
+            var statpipeDelay = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time"));
+            var statpipeFlow = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over")).Tag },
+                DateTime.Now.AddHours(-statpipeDelay.Value));
+            var statpipeMolWeight = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Statpipe molweight")).Tag },
+                DateTime.Now.AddHours(-statpipeDelay.Value));
+
+            StatpipeMolFlow = statpipeFlow[0] * 1000.0 / statpipeMolWeight[0]; // [mol/h]
+            logger.Debug(CultureInfo.InvariantCulture, "Statpipe mol flow: {0} mol/h", StatpipeMolFlow);
+
+            T100MolFlow = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("T100 mass flow")).Value * 1000.0 /
+                config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("T100 molweight")).Value; // [mol/h]
+            logger.Debug(CultureInfo.InvariantCulture, "T100 mol flow: {0} mol/h", T100MolFlow);
+
+            if (config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("X-over status")).Value > 0.5)
+            {
+                StatpipeXoverMolFlow = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over STP")).Value * 1000.0 / statpipeMolWeight[0];
+                logger.Debug(CultureInfo.InvariantCulture, "X-over position: Statpipe");
+            }
+            else
+            {
+                StatpipeXoverMolFlow = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over STP")).Value * 1000.0 / asgardMolWeight[0];
+                logger.Debug(CultureInfo.InvariantCulture, "X-over position: Åsgard");
+            }
+            if (StatpipeXoverMolFlow < 0.0)
+            {
+                StatpipeXoverMolFlow = 0.0;
+            }
+            logger.Debug(CultureInfo.InvariantCulture, "X-over mol flow: {0} mol/h", StatpipeXoverMolFlow);
+
+            // Calculate mixed compositions
+            List<Component> asgardComponentFlow = new List<Component>();
+            double asgardComponentFlowSum = 0.0;
+            foreach (var item in config.AsgardComposition.Item)
+            {
+                asgardComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = AsgardMolFlow * item.WriteValue / 100.0 });
+                asgardComponentFlowSum += AsgardMolFlow * item.WriteValue / 100.0;
+            }
+
+            List<Component> statpipeComponentFlow = new List<Component>();
+            double statpipeComponentFlowSum = 0.0;
+            foreach (var item in config.StatpipeComposition.Item)
+            {
+                statpipeComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeMolFlow * item.WriteValue / 100.0 });
+                statpipeComponentFlowSum += StatpipeMolFlow * item.WriteValue / 100.0;
+            }
+
+            if (asgardComponentFlowSum + statpipeComponentFlowSum > 0.0)
+            {
+                foreach (var item in config.T400Composition.Item)
+                {
+                    item.WriteValue = (asgardComponentFlow.Find(x => x.Id == item.Id).WriteValue +
+                        statpipeComponentFlow.Find(x => x.Id == item.Id).WriteValue) /
+                        (asgardComponentFlowSum + statpipeComponentFlowSum) * 100.0;
+                }
+            }
+
+            List<Component> xOverComponentFlow = new List<Component>();
+            double xOverComponentFlowSum = 0.0;
+            if (config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("X-over status")).Value > 0.5)
+            {
+                foreach (var item in config.StatpipeComposition.Item)
+                {
+                    xOverComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeXoverMolFlow * item.WriteValue / 100.0 });
+                    xOverComponentFlowSum += StatpipeXoverMolFlow * item.WriteValue / 100.0;
+                }
+            }
+            else
+            {
+                foreach (var item in config.AsgardComposition.Item)
+                {
+                    xOverComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeXoverMolFlow * item.WriteValue / 100.0 });
+                    xOverComponentFlowSum += StatpipeXoverMolFlow * item.WriteValue / 100.0;
+                }
+            }
+
+            List<Component> dixoComponentFlow = new List<Component>();
+            double dixoComponentFlowSum = 0.0;
+            foreach (var item in config.T400Composition.Item)
+            {
+                dixoComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = T100MolFlow * item.WriteValue / 100.0 });
+                dixoComponentFlowSum += T100MolFlow * item.WriteValue / 100.0;
+            }
+
+            if (xOverComponentFlowSum + dixoComponentFlowSum > 0.0)
+            {
+                foreach (var item in config.T100Composition.Item)
+                {
+                    item.WriteValue = (xOverComponentFlow.Find(x => x.Id == item.Id).WriteValue +
+                        dixoComponentFlow.Find(x => x.Id == item.Id).WriteValue) /
+                        (xOverComponentFlowSum + dixoComponentFlowSum) * 100.0;
+                }
+            }
+        }
         private void ReadDelayedComposition()
         {
-            var asgardDelay = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Transport time"));
+            var asgardDelay = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time"));
             var asgardValues = DataAccess.GetValue(new List<string>(config.AsgardComposition.GetTags()), DateTime.Now.AddHours(-asgardDelay.Value));
 
             int i = 0;
@@ -82,7 +193,7 @@ namespace MixCalc
                 i++;
             }
 
-            var statpipeDelay = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Transport time"));
+            var statpipeDelay = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time"));
             var statpipeValues = DataAccess.GetValue(new List<string>(config.StatpipeComposition.GetTags()), DateTime.Now.AddHours(-statpipeDelay.Value));
 
             i = 0;
@@ -97,16 +208,16 @@ namespace MixCalc
 
         private void CalculateVolumeFlow()
         {
-            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Volume flow")).Value = CalculateAsgardVolumeFlow();
-            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Volume flow")).Value = CalculateStatpipeVolumeFlow();
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value = CalculateAsgardVolumeFlow();
+            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value = CalculateStatpipeVolumeFlow();
         }
 
         private void CalculateDelays()
         {
             double asgardPipeVolume = 18085.0;
             double statpipePipeVolume = 7901.0;
-            string asgardTag = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Volume flow")).Tag;
-            string statpipeTag = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Volume flow")).Tag;
+            string asgardTag = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Tag;
+            string statpipeTag = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Tag;
 
             TimeSpan asgardDelay = CalculateDelay(asgardTag, asgardPipeVolume);
             logger.Debug(CultureInfo.InvariantCulture, "Åsgard delay: {0} h", asgardDelay.TotalHours);
@@ -114,8 +225,8 @@ namespace MixCalc
             TimeSpan statpipeDelay = CalculateDelay(statpipeTag, statpipePipeVolume);
             logger.Debug(CultureInfo.InvariantCulture, "Statpipe delay: {0} h", statpipeDelay.TotalHours);
 
-            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Transport time")).Value = asgardDelay.TotalHours;
-            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Transport time")).Value = statpipeDelay.TotalHours;
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value = asgardDelay.TotalHours;
+            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value = statpipeDelay.TotalHours;
         }
 
         private static TimeSpan CalculateDelay(string Tag, double PipeVolume)
@@ -227,10 +338,10 @@ namespace MixCalc
         {
             try
             {
-                int storedRows = MixCalc.DataAccess.StoreValue(config.HistoryMeasurements.Item);
+                int storedRows = DataAccess.StoreValue(config.HistoryMeasurements.Item);
                 logger.Debug(CultureInfo.InvariantCulture,
                     "Wrote {0} values to History database.", storedRows);
-                int clearedRows = MixCalc.DataAccess.ClearHistory(DateTime.Now.AddHours(-config.HistoryMeasurements.MaxAge));
+                int clearedRows = DataAccess.ClearHistory(DateTime.Now.AddHours(-config.HistoryMeasurements.MaxAge));
                 if (clearedRows > 0)
                 {
                     logger.Debug(CultureInfo.InvariantCulture,
@@ -245,11 +356,11 @@ namespace MixCalc
 
         private double CalculateAsgardVolumeFlow()
         {
-            double massFlowBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Mass flow før x-over")).Value;
-            double densityBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Density før x-over")).Value;
-            double massFlowXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Mass flow x-over")).Value;
-            double densityKarsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Density Kårstø")).Value;
-            double densityKalsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard Density Kalstø")).Value;
+            double massFlowBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow før x-over")).Value;
+            double densityBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density før x-over")).Value;
+            double massFlowXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow x-over")).Value;
+            double densityKarsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density Kårstø")).Value;
+            double densityKalsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density Kalstø")).Value;
 
             // Convert from mass flow to diff pressure [mbar]
             double dp = Math.Pow(massFlowBeforeXover * Math.Sqrt(350.0) / 3105.0, 2.0);
@@ -274,10 +385,10 @@ namespace MixCalc
 
         private double CalculateStatpipeVolumeFlow()
         {
-            double massFlowXover = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Mass flow x-over")).Value;
-            double massFlowXoverSTP = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Mass flow x-over STP")).Value;
-            double densityKarsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Density Kårstø")).Value;
-            double densityKalsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe Density Kalstø")).Value;
+            double massFlowXover = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over")).Value;
+            double massFlowXoverSTP = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over STP")).Value;
+            double densityKarsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe density Kårstø")).Value;
+            double densityKalsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe density Kalstø")).Value;
 
             // Sum mass flows [t/h]
             if (massFlowXoverSTP < 0.0)
@@ -340,6 +451,32 @@ namespace MixCalc
             }
 
             foreach (var item in config.StatpipeComposition.Item)
+            {
+                if (!string.IsNullOrEmpty(item.WriteTag) && !string.IsNullOrEmpty(item.Type))
+                {
+                    wvc.Add(new WriteValue()
+                    {
+                        NodeId = item.WriteTag,
+                        AttributeId = Attributes.Value,
+                        Value = new DataValue { Value = item.WriteValue }
+                    });
+                }
+            }
+
+            foreach (var item in config.T100Composition.Item)
+            {
+                if (!string.IsNullOrEmpty(item.WriteTag) && !string.IsNullOrEmpty(item.Type))
+                {
+                    wvc.Add(new WriteValue()
+                    {
+                        NodeId = item.WriteTag,
+                        AttributeId = Attributes.Value,
+                        Value = new DataValue { Value = item.WriteValue }
+                    });
+                }
+            }
+
+            foreach (var item in config.T400Composition.Item)
             {
                 if (!string.IsNullOrEmpty(item.WriteTag) && !string.IsNullOrEmpty(item.Type))
                 {

@@ -60,8 +60,8 @@ namespace MixCalc
                 try
                 {
                     ReadFromOPC();
-                    StoreHistoryMeasurements();
                     CalculateVolumeFlow();
+                    StoreHistoryMeasurements();
                     CalculateDelays();
                     ReadDelayedComposition();
                     CalculateMix();
@@ -78,7 +78,7 @@ namespace MixCalc
         {
             // Calculate mol flows
             var asgardDelay = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time"));
-            var asgardFlow = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow før x-over")).Tag },
+            var asgardFlow = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).Tag },
                 DateTime.Now.AddHours(-asgardDelay.Value));
             var asgardMolWeight = DataAccess.GetValue(new List<string> { config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard molweight")).Tag },
                 DateTime.Now.AddHours(-asgardDelay.Value));
@@ -271,17 +271,26 @@ namespace MixCalc
             // Make a list of all the OPC item that we want to read
             foreach (var item in config.HistoryMeasurements.Item)
             {
-                nodes.Add(item.Tag); types.Add(typeof(object));
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
             }
 
             foreach (var item in config.AsgardMeasurements.Item)
             {
-                nodes.Add(item.Tag); types.Add(typeof(object));
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
             }
 
             foreach (var item in config.StatpipeMeasurements.Item)
             {
-                nodes.Add(item.Tag); types.Add(typeof(object));
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
             }
 
             foreach (var item in nodes)
@@ -308,11 +317,14 @@ namespace MixCalc
             int it = 0;
             foreach (var meas in config.HistoryMeasurements.Item)
             {
-                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
-                meas.TimeStamp = DateTime.Now;
-                logger.Debug(CultureInfo.InvariantCulture,
-                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
-                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+                if (!meas.Output)
+                {
+                    meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                    meas.TimeStamp = DateTime.Now;
+                    logger.Debug(CultureInfo.InvariantCulture,
+                        "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                        meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+                }
             }
 
             foreach (var meas in config.AsgardMeasurements.Item)
@@ -369,6 +381,9 @@ namespace MixCalc
             // Calculate mass flow before x-over [t/h]
             massFlowBeforeXover = 1312.0 * Math.Sqrt(densityBeforeXover * dp * 100.0) / 1000.0;
             logger.Debug(CultureInfo.InvariantCulture, "Åsgard corrected mass flow before x-over {0} t/h", massFlowBeforeXover);
+            // Store mass flow in history database
+            config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).Value = massFlowBeforeXover;
+            config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).TimeStamp = DateTime.Now;
 
             // Calculate Åsgard mass flow [t/h]
             double asgardMassFlow = massFlowBeforeXover + massFlowXover;

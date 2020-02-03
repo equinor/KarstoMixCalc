@@ -180,6 +180,8 @@ namespace MixCalc
         public string Tag { get; set; }
         [XmlAttribute]
         public string Type { get; set; }
+        [XmlAttribute]
+        public bool Output { get; set; }
 
         [XmlIgnore]
         public double Value { get; set; }

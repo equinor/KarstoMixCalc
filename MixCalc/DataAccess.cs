@@ -97,7 +97,6 @@ WHERE
 
                 return affectedRows;
             }
-
         }
 
         private static string LoadConnectionString(string id = "Default")

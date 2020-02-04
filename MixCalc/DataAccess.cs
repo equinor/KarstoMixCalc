@@ -36,7 +36,7 @@ WHERE
 
             using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
             {
-                var values = con.Query<MixCalc.TimeStampedMeasurement>(query, new DynamicParameters());
+                var values = con.Query<TimeStampedMeasurement>(query, new DynamicParameters());
 
                 foreach (var tagItem in Tag)
                 {
@@ -47,7 +47,7 @@ WHERE
             return resultValues;
         }
 
-        public static IEnumerable<MixCalc.TimeStampedMeasurement> GetValueSet(string Tag)
+        public static IEnumerable<TimeStampedMeasurement> GetValueSet(string Tag)
         {
             if (Tag is null)
             {
@@ -63,11 +63,11 @@ ORDER BY TimeStamp DESC";
 
             using (IDbConnection con = new SQLiteConnection(LoadConnectionString()))
             {
-                return con.Query<MixCalc.TimeStampedMeasurement>(query, new DynamicParameters());
+                return con.Query<TimeStampedMeasurement>(query, new DynamicParameters());
             }
         }
 
-        public static int StoreValue(List<MixCalc.TimeStampedMeasurement> Value)
+        public static int StoreValue(List<TimeStampedMeasurement> Value)
         {
             string query = "INSERT INTO History (Tag, Value, TimeStamp) VALUES (@Tag, @Value, @TimeStamp);";
 
@@ -104,7 +104,7 @@ WHERE
             return ConfigurationManager.ConnectionStrings[id].ConnectionString;
         }
 
-        private static double Interpolate(List<MixCalc.TimeStampedMeasurement> Values, DateTime TimeStamp)
+        private static double Interpolate(List<TimeStampedMeasurement> Values, DateTime TimeStamp)
         {
             double resultValue;
             if (Values.ToList().Count == 0)
@@ -118,8 +118,8 @@ WHERE
             else
             {
 
-                MixCalc.TimeStampedMeasurement m0 = new MixCalc.TimeStampedMeasurement();
-                MixCalc.TimeStampedMeasurement m1 = new MixCalc.TimeStampedMeasurement();
+                TimeStampedMeasurement m0 = new TimeStampedMeasurement();
+                TimeStampedMeasurement m1 = new TimeStampedMeasurement();
                 double nearestBefore = Double.MaxValue;
                 double nearestAfter = Double.MaxValue;
                 foreach (var v in Values)

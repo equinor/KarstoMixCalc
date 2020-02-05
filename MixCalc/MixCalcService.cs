@@ -19,6 +19,10 @@ namespace MixCalc
         private double T100MolFlow = 0.0;
         private double StatpipeXoverMolFlow = 0.0;
 
+        // status 0.0 is OK, 1.0 is Bad
+        private double Status = 0.0;
+        private double WatchDog = 0.0;
+
         public MixCalcService()
         {
             logger.Info("Initializing MixCalcService.");
@@ -67,9 +71,17 @@ namespace MixCalc
                     CalculateMix();
                     Validate();
                     WriteToOPC();
+
+                    Status = 0.0;
+                    WatchDog += 1.0;
+                    if (WatchDog > 100.0)
+                    {
+                        WatchDog = 0.0;
+                    }
                 }
                 catch (Exception e)
                 {
+                    Status = 1.0;
                     logger.Error(e, "Error in Worker.");
                 }
             }
@@ -77,49 +89,47 @@ namespace MixCalc
 
         private void Validate()
         {
-            // status 0.0 is OK, 1.0 is Bad
-            double status = 0.0;
-
             // GC status == 1000 means OK
             foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AI2038 status", StringComparison.InvariantCulture)))
             {
                 logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) status = 1.0;
+                if (item.Value < 999.9) Status = 1.0;
             }
             foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM5626 status", StringComparison.InvariantCulture)))
             {
                 logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) status = 1.0;
+                if (item.Value < 999.9) Status = 1.0;
             }
             foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM0004 status", StringComparison.InvariantCulture)))
             {
                 logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) status = 1.0;
+                if (item.Value < 999.9) Status = 1.0;
             }
             foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC Kalstø status", StringComparison.InvariantCulture)))
             {
                 logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) status = 1.0;
+                if (item.Value < 999.9) Status = 1.0;
             }
 
             // Mol flows
             if (double.IsNaN(AsgardMolFlow) || double.IsNaN(StatpipeMolFlow) || double.IsNaN(StatpipeXoverMolFlow) || double.IsNaN(T100MolFlow))
             {
-                status = 1.0;
+                Status = 1.0;
             }
 
             // Volume flows
             if (double.IsNaN(config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value) ||
                 double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value))
             {
-                status = 1.0;
+                Status = 1.0;
             }
 
             // Transport times
-            if (double.IsNaN(config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value) ||
-                double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value))
+            double ttAsgard = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value;
+            double ttStatpipe = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value;
+            if (double.IsNaN(ttAsgard) || double.IsNaN(ttStatpipe) || ttAsgard < 0.1 || ttStatpipe < 0.1)
             {
-                status = 1.0;
+                Status = 1.0;
             }
 
             // Calculated delayed compositions
@@ -127,19 +137,19 @@ namespace MixCalc
             {
                 if (double.IsNaN(item.WriteValue))
                 {
-                    status = 1.0;
+                    Status = 1.0;
                 }
             }
             foreach (var item in config.StatpipeComposition.Item)
             {
                 if (double.IsNaN(item.WriteValue))
                 {
-                    status = 1.0;
+                    Status = 1.0;
                 }
             }
 
-            config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = status;
-            logger.Debug(CultureInfo.InvariantCulture, "Validation: status {0}", status);
+            config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = Status;
+            logger.Debug(CultureInfo.InvariantCulture, "Validation: status {0}", Status);
         }
 
         private void CalculateMix()
@@ -383,6 +393,7 @@ namespace MixCalc
             }
             catch (Exception e)
             {
+                Status = 1.0;
                 logger.Error(e, "Error reading values from OPC.");
             }
 
@@ -452,6 +463,7 @@ namespace MixCalc
             }
             catch (Exception e)
             {
+                Status = 1.0;
                 logger.Error(e, "Error writing to History database");
             }
         }
@@ -628,6 +640,7 @@ namespace MixCalc
             }
             catch (Exception e)
             {
+                Status = 1.0;
                 logger.Error(e, "Error writing OPC items");
             }
         }

@@ -102,6 +102,42 @@ namespace MixCalc
                 if (item.Value < 999.9) status = 1.0;
             }
 
+            // Mol flows
+            if (double.IsNaN(AsgardMolFlow) || double.IsNaN(StatpipeMolFlow) || double.IsNaN(StatpipeXoverMolFlow) || double.IsNaN(T100MolFlow))
+            {
+                status = 1.0;
+            }
+
+            // Volume flows
+            if (double.IsNaN(config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value) ||
+                double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value))
+            {
+                status = 1.0;
+            }
+
+            // Transport times
+            if (double.IsNaN(config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value) ||
+                double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value))
+            {
+                status = 1.0;
+            }
+
+            // Calculated delayed compositions
+            foreach (var item in config.AsgardComposition.Item)
+            {
+                if (double.IsNaN(item.WriteValue))
+                {
+                    status = 1.0;
+                }
+            }
+            foreach (var item in config.StatpipeComposition.Item)
+            {
+                if (double.IsNaN(item.WriteValue))
+                {
+                    status = 1.0;
+                }
+            }
+
             config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = status;
             logger.Debug(CultureInfo.InvariantCulture, "Validation: status {0}", status);
         }
@@ -154,7 +190,9 @@ namespace MixCalc
             {
                 asgardComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = AsgardMolFlow * item.WriteValue / 100.0 });
                 asgardComponentFlowSum += AsgardMolFlow * item.WriteValue / 100.0;
+                logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow \"{0}\": {1}", item.Name, asgardComponentFlow);
             }
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow sum: {0}", asgardComponentFlowSum);
 
             List<Component> statpipeComponentFlow = new List<Component>();
             double statpipeComponentFlowSum = 0.0;
@@ -162,7 +200,9 @@ namespace MixCalc
             {
                 statpipeComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeMolFlow * item.WriteValue / 100.0 });
                 statpipeComponentFlowSum += StatpipeMolFlow * item.WriteValue / 100.0;
+                logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow \"{0}\": {1}", item.Name, statpipeComponentFlow);
             }
+            logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow sum: {0}", statpipeComponentFlowSum);
 
             if (asgardComponentFlowSum + statpipeComponentFlowSum > 0.0)
             {

@@ -65,6 +65,7 @@ namespace MixCalc
                     CalculateDelays();
                     ReadDelayedComposition();
                     CalculateMix();
+                    Validate();
                     WriteToOPC();
                 }
                 catch (Exception e)
@@ -72,6 +73,37 @@ namespace MixCalc
                     logger.Error(e, "Error in Worker.");
                 }
             }
+        }
+
+        private void Validate()
+        {
+            // status 0.0 is OK, 1.0 is Bad
+            double status = 0.0;
+
+            // GC status == 1000 means OK
+            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AI2038 status", StringComparison.InvariantCulture)))
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
+                if (item.Value < 999.9) status = 1.0;
+            }
+            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM5626 status", StringComparison.InvariantCulture)))
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
+                if (item.Value < 999.9) status = 1.0;
+            }
+            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM0004 status", StringComparison.InvariantCulture)))
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
+                if (item.Value < 999.9) status = 1.0;
+            }
+            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC Kalstø status", StringComparison.InvariantCulture)))
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
+                if (item.Value < 999.9) status = 1.0;
+            }
+
+            config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = status;
+            logger.Debug(CultureInfo.InvariantCulture, "Validation: status {0}", status);
         }
 
         private void CalculateMix()
@@ -293,6 +325,14 @@ namespace MixCalc
                 }
             }
 
+            foreach (var item in config.Validation.Item)
+            {
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
+            }
+
             foreach (var item in nodes)
             {
                 logger.Debug(CultureInfo.InvariantCulture, "Item to read: \"{0}\"", item.ToString());
@@ -343,6 +383,18 @@ namespace MixCalc
                 logger.Debug(CultureInfo.InvariantCulture,
                     "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
                     meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+            }
+
+            foreach (var meas in config.Validation.Item)
+            {
+                if (!meas.Output)
+                {
+                    meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                    meas.TimeStamp = DateTime.Now;
+                    logger.Debug(CultureInfo.InvariantCulture,
+                        "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                        meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+                }
             }
         }
 
@@ -502,6 +554,17 @@ namespace MixCalc
                         Value = new DataValue { Value = item.WriteValue }
                     });
                 }
+            }
+
+            var status = config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status"));
+            if (!string.IsNullOrEmpty(status.Tag) && !string.IsNullOrEmpty(status.Type))
+            {
+                wvc.Add(new WriteValue()
+                {
+                    NodeId = status.Tag,
+                    AttributeId = Attributes.Value,
+                    Value = new DataValue { Value = status.GetTypedValue() }
+                });
             }
 
             foreach (var item in wvc)

@@ -48,6 +48,9 @@ namespace MixCalc
         [XmlElement]
         public CompositionList T100Composition { get; set; } = new CompositionList();
 
+        [XmlElement]
+        public MeasurementList Validation { get; set; } = new MeasurementList();
+
         public static ConfigModel ReadConfig(string file)
         {
             XmlReaderSettings readerSettings = new XmlReaderSettings
@@ -188,17 +191,23 @@ namespace MixCalc
 
         public object GetTypedValue()
         {
-            if (Type == "single")
+            switch (Type)
             {
-                return Convert.ToSingle(Value);
-            }
-            else if (Type == "double")
-            {
-                return Convert.ToDouble(Value);
-            }
-            else
-            {
-                return Convert.ToDouble(Value);
+                case "single":
+                    return Convert.ToSingle(Value);
+                case "double":
+                    return Convert.ToDouble(Value);
+                case "bool":
+                    if (Value < 0.5)
+                    {
+                        return false;
+                    }
+                    else
+                    {
+                        return true;
+                    }
+                default:
+                    return Convert.ToDouble(Value);
             }
         }
     }

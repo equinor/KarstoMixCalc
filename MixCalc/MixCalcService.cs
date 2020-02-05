@@ -190,7 +190,7 @@ namespace MixCalc
             {
                 asgardComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = AsgardMolFlow * item.WriteValue / 100.0 });
                 asgardComponentFlowSum += AsgardMolFlow * item.WriteValue / 100.0;
-                logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow \"{0}\": {1}", item.Name, asgardComponentFlow);
+                logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow \"{0}\": {1}", item.Name, AsgardMolFlow * item.WriteValue / 100.0);
             }
             logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow sum: {0}", asgardComponentFlowSum);
 
@@ -200,7 +200,7 @@ namespace MixCalc
             {
                 statpipeComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeMolFlow * item.WriteValue / 100.0 });
                 statpipeComponentFlowSum += StatpipeMolFlow * item.WriteValue / 100.0;
-                logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow \"{0}\": {1}", item.Name, statpipeComponentFlow);
+                logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow \"{0}\": {1}", item.Name, StatpipeMolFlow * item.WriteValue / 100.0);
             }
             logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow sum: {0}", statpipeComponentFlowSum);
 
@@ -319,8 +319,6 @@ namespace MixCalc
 
                 volume += m.Value;
                 double accumulatedVolume = (volume / (double)i) * (t0 - m.TimeStamp).TotalHours;
-
-                logger.Debug(CultureInfo.InvariantCulture, "{0} accumulated volume: {1}, delay: {2}", Tag, accumulatedVolume, (t0 - m.TimeStamp).TotalHours);
 
                 if (accumulatedVolume > PipeVolume)
                 {

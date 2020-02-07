@@ -20,6 +20,11 @@ namespace Tests
                 OpcUser = "user",
                 OpcPassword = "password",
             };
+
+            config.WatchDog.Name = "Watch dog";
+            config.WatchDog.Tag = "87XI0040";
+            config.WatchDog.Type = "double";
+
             config.HistoryMeasurements.MaxAge = 2.0 / 60.0;
             config.HistoryMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe CO2", Tag = "31AI0157A_K" });
             config.HistoryMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Statpipe N2", Tag = "31AI0157A_J" });

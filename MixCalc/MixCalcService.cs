@@ -21,7 +21,6 @@ namespace MixCalc
 
         // status 0.0 is OK, 1.0 is Bad
         private double Status = 0.0;
-        private double WatchDog = 0.0;
 
         public MixCalcService()
         {
@@ -41,6 +40,7 @@ namespace MixCalc
             timer = new Timer(20_000.0) { AutoReset = true, SynchronizingObject = null };
             timer.Elapsed += Worker;
 
+            config.WatchDog.Value = 0.0;
             opcClient = new OpcClient(config.OpcUrl, config.OpcUser, config.OpcPassword);
         }
 
@@ -63,6 +63,12 @@ namespace MixCalc
             {
                 try
                 {
+                    if (config.WatchDog.Value > 100.0 || config.WatchDog.Value < 0.0)
+                    {
+                        config.WatchDog.Value = 0.0;
+                    }
+                    logger.Debug(CultureInfo.InvariantCulture, "WatchDog: {0}", config.WatchDog.Value);
+
                     ReadFromOPC();
                     CalculateVolumeFlow();
                     StoreHistoryMeasurements();
@@ -73,11 +79,7 @@ namespace MixCalc
                     WriteToOPC();
 
                     Status = 0.0;
-                    WatchDog += 1.0;
-                    if (WatchDog > 100.0)
-                    {
-                        WatchDog = 0.0;
-                    }
+                    config.WatchDog.Value += 1.0;
                 }
                 catch (Exception e)
                 {
@@ -87,29 +89,26 @@ namespace MixCalc
             }
         }
 
+        private static double CheckGcStatus(List<TimeStampedMeasurement> gc)
+        {
+            // 0 means good, 1 means bad
+            double gcStatus = 1.0;
+            foreach (var item in gc)
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
+                // status value that is read from GC, 1000 means OK
+                if (item.Value > 999.9) gcStatus = 0.0;
+            }
+            return gcStatus;
+        }
+
         private void Validate()
         {
-            // GC status == 1000 means OK
-            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AI2038 status", StringComparison.InvariantCulture)))
-            {
-                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) Status = 1.0;
-            }
-            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM5626 status", StringComparison.InvariantCulture)))
-            {
-                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) Status = 1.0;
-            }
-            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM0004 status", StringComparison.InvariantCulture)))
-            {
-                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) Status = 1.0;
-            }
-            foreach (var item in config.Validation.Item.FindAll(x => x.Name.StartsWith("GC Kalstø status", StringComparison.InvariantCulture)))
-            {
-                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                if (item.Value < 999.9) Status = 1.0;
-            }
+            // GC status
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AI2038 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM5626 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM0004 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC Kalstø status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
 
             // Mol flows
             if (double.IsNaN(AsgardMolFlow) || double.IsNaN(StatpipeMolFlow) || double.IsNaN(StatpipeXoverMolFlow) || double.IsNaN(T100MolFlow))
@@ -616,6 +615,13 @@ namespace MixCalc
                     Value = new DataValue { Value = status.GetTypedValue() }
                 });
             }
+
+            wvc.Add(new WriteValue()
+            {
+                NodeId = config.WatchDog.Tag,
+                AttributeId = Attributes.Value,
+                Value = new DataValue { Value = config.WatchDog.GetTypedValue() }
+            });
 
             foreach (var item in wvc)
             {

@@ -51,6 +51,9 @@ namespace MixCalc
         [XmlElement]
         public MeasurementList Validation { get; set; } = new MeasurementList();
 
+        [XmlElement]
+        public Measurement WatchDog { get; set; } = new Measurement();
+
         public static ConfigModel ReadConfig(string file)
         {
             XmlReaderSettings readerSettings = new XmlReaderSettings

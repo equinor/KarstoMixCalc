@@ -28,6 +28,9 @@ namespace MixCalc
         public string OpcPassword { get; set; }
 
         [XmlElement]
+        public bool ReadOnly { get; set; }
+
+        [XmlElement]
         public MeasurementList HistoryMeasurements { get; set; } = new MeasurementList();
 
         [XmlElement]

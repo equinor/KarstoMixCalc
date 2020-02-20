@@ -19,6 +19,7 @@ namespace Tests
                 OpcUrl = "opc.tcp://localhost:62548/Quickstarts/DataAccessServer",
                 OpcUser = "user",
                 OpcPassword = "password",
+                ReadOnly = true
             };
 
             config.WatchDog.Name = "Watch dog";

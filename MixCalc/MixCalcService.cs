@@ -595,7 +595,7 @@ namespace MixCalc
                     {
                         NodeId = item.WriteTag,
                         AttributeId = Attributes.Value,
-                        Value = new DataValue { Value = item.WriteValue * 10_000.0 }
+                        Value = new DataValue { Value = item.WriteValue }
                     });
                 }
             }
@@ -608,7 +608,7 @@ namespace MixCalc
                     {
                         NodeId = item.WriteTag,
                         AttributeId = Attributes.Value,
-                        Value = new DataValue { Value = item.WriteValue * 10_000.0 }
+                        Value = new DataValue { Value = item.WriteValue }
                     });
                 }
             }
@@ -638,24 +638,31 @@ namespace MixCalc
                     item.Value.Value);
             }
 
-            try
+            if (!config.ReadOnly)
             {
-                opcClient.OpcSession.Write(null, wvc, out StatusCodeCollection results, out DiagnosticInfoCollection diagnosticInfos);
-
-                for (int i = 0; i < results.Count; i++)
+                try
                 {
-                    if (results[i].Code != 0)
-                    {
-                        logger.Error(CultureInfo.InvariantCulture, "Write result: \"{0}\" Tag: \"{1}\" Value: \"{2}\" Type: \"{3}\"",
-                            results[i].ToString(), wvc[i].NodeId, wvc[i].Value.Value, wvc[i].Value.Value.GetType().ToString());
-                    }
+                    opcClient.OpcSession.Write(null, wvc, out StatusCodeCollection results, out DiagnosticInfoCollection diagnosticInfos);
 
+                    for (int i = 0; i < results.Count; i++)
+                    {
+                        if (results[i].Code != 0)
+                        {
+                            logger.Error(CultureInfo.InvariantCulture, "Write result: \"{0}\" Tag: \"{1}\" Value: \"{2}\" Type: \"{3}\"",
+                                results[i].ToString(), wvc[i].NodeId, wvc[i].Value.Value, wvc[i].Value.Value.GetType().ToString());
+                        }
+
+                    }
+                }
+                catch (Exception e)
+                {
+                    Status = 1.0;
+                    logger.Error(e, "Error writing OPC items");
                 }
             }
-            catch (Exception e)
+            else
             {
-                Status = 1.0;
-                logger.Error(e, "Error writing OPC items");
+                logger.Debug(CultureInfo.InvariantCulture, "ReadOnly active, no data written to OPC.");
             }
         }
 

@@ -299,6 +299,14 @@ namespace MixCalc
         {
             config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value = CalculateAsgardVolumeFlow();
             config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value = CalculateStatpipeVolumeFlow();
+
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 volume flow")).Value = CalculateT400VolumeFlow(
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 diff pressure")).Value * 100.0,
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 density")).Value);
+
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 volume flow")).Value = CalculateT400VolumeFlow(
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 diff pressure")).Value * 100.0,
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 density")).Value);
         }
 
         private void CalculateDelays()
@@ -473,6 +481,11 @@ namespace MixCalc
                 Status = 1.0;
                 logger.Error(e, "Error writing to History database");
             }
+        }
+
+        private static double CalculateT400VolumeFlow(double diffPressure, double density)
+        {
+            return 235.41 * Math.Sqrt(diffPressure / density);
         }
 
         private double CalculateAsgardVolumeFlow()

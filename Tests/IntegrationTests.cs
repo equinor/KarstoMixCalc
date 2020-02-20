@@ -45,6 +45,14 @@ namespace Tests
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard volume flow", Tag = "31FI2038V", Type = "double" });
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard transport time", Tag = "31KY2038", Type = "double" });
 
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "T410 density", Tag = "21DY5050" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "T410 diff pressure", Tag = "21FI5050A" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "T410 volume flow", Tag = "21FY5050", Type = "double" });
+
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "T420 density", Tag = "21DY5051" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "T420 diff pressure", Tag = "21FI5051A" });
+            config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "T420 volume flow", Tag = "21FY5051", Type = "double" });
+
             config.AsgardMeasurements.Item.Add(new MixCalc.TimeStampedMeasurement { Name = "Åsgard molweight", Tag = "31AM0161V" });
 
             config.AsgardComposition.Item.Add(new MixCalc.Component { Name = "Åsgard CO2", Id = 0, Tag = "31AI0161A_K", ScaleFactor = 0.01, WriteTag = "31AY0161A_K", Type = "double" });

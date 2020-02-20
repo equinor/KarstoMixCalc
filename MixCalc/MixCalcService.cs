@@ -197,9 +197,9 @@ namespace MixCalc
             double asgardComponentFlowSum = 0.0;
             foreach (var item in config.AsgardComposition.Item)
             {
-                asgardComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = AsgardMolFlow * item.WriteValue / 100.0 });
-                asgardComponentFlowSum += AsgardMolFlow * item.WriteValue / 100.0;
-                logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow \"{0}\": {1}", item.Name, AsgardMolFlow * item.WriteValue / 100.0);
+                asgardComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = AsgardMolFlow * item.GetScaledWriteValue() });
+                asgardComponentFlowSum += AsgardMolFlow * item.GetScaledWriteValue();
+                logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow \"{0}\": {1}", item.Name, AsgardMolFlow * item.GetScaledWriteValue());
             }
             logger.Debug(CultureInfo.InvariantCulture, "Åsgard component flow sum: {0}", asgardComponentFlowSum);
 
@@ -207,9 +207,9 @@ namespace MixCalc
             double statpipeComponentFlowSum = 0.0;
             foreach (var item in config.StatpipeComposition.Item)
             {
-                statpipeComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeMolFlow * item.WriteValue / 100.0 });
-                statpipeComponentFlowSum += StatpipeMolFlow * item.WriteValue / 100.0;
-                logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow \"{0}\": {1}", item.Name, StatpipeMolFlow * item.WriteValue / 100.0);
+                statpipeComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeMolFlow * item.GetScaledWriteValue() });
+                statpipeComponentFlowSum += StatpipeMolFlow * item.GetScaledWriteValue();
+                logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow \"{0}\": {1}", item.Name, StatpipeMolFlow * item.GetScaledWriteValue());
             }
             logger.Debug(CultureInfo.InvariantCulture, "Statpipe component flow sum: {0}", statpipeComponentFlowSum);
 
@@ -229,26 +229,34 @@ namespace MixCalc
             {
                 foreach (var item in config.StatpipeComposition.Item)
                 {
-                    xOverComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeXoverMolFlow * item.WriteValue / 100.0 });
-                    xOverComponentFlowSum += StatpipeXoverMolFlow * item.WriteValue / 100.0;
+                    xOverComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeXoverMolFlow * item.GetScaledWriteValue() });
+                    xOverComponentFlowSum += StatpipeXoverMolFlow * item.GetScaledWriteValue();
                 }
             }
             else
             {
                 foreach (var item in config.AsgardComposition.Item)
                 {
-                    xOverComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeXoverMolFlow * item.WriteValue / 100.0 });
-                    xOverComponentFlowSum += StatpipeXoverMolFlow * item.WriteValue / 100.0;
+                    xOverComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = StatpipeXoverMolFlow * item.GetScaledWriteValue() });
+                    xOverComponentFlowSum += StatpipeXoverMolFlow * item.GetScaledWriteValue();
                 }
             }
+
+            foreach (var item in xOverComponentFlow)
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "X-over component flow \"{0}\": {1}", item.Name, item.WriteValue);
+            }
+            logger.Debug(CultureInfo.InvariantCulture, "X-over component flow sum: {0}", xOverComponentFlowSum);
 
             List<Component> dixoComponentFlow = new List<Component>();
             double dixoComponentFlowSum = 0.0;
             foreach (var item in config.T400Composition.Item)
             {
-                dixoComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = T100MolFlow * item.WriteValue / 100.0 });
-                dixoComponentFlowSum += T100MolFlow * item.WriteValue / 100.0;
+                dixoComponentFlow.Add(new Component() { Id = item.Id, WriteTag = item.WriteTag, WriteValue = T100MolFlow * item.GetScaledWriteValue() });
+                dixoComponentFlowSum += T100MolFlow * item.GetScaledWriteValue();
+                logger.Debug(CultureInfo.InvariantCulture, "Dixo component flow \"{0}\": {1}", item.Name, T100MolFlow * item.GetScaledWriteValue());
             }
+            logger.Debug(CultureInfo.InvariantCulture, "Dixo component flow sum: {0}", dixoComponentFlowSum);
 
             if (xOverComponentFlowSum + dixoComponentFlowSum > 0.0)
             {
@@ -587,7 +595,7 @@ namespace MixCalc
                     {
                         NodeId = item.WriteTag,
                         AttributeId = Attributes.Value,
-                        Value = new DataValue { Value = item.WriteValue }
+                        Value = new DataValue { Value = item.WriteValue * 10_000.0 }
                     });
                 }
             }
@@ -600,7 +608,7 @@ namespace MixCalc
                     {
                         NodeId = item.WriteTag,
                         AttributeId = Attributes.Value,
-                        Value = new DataValue { Value = item.WriteValue }
+                        Value = new DataValue { Value = item.WriteValue * 10_000.0 }
                     });
                 }
             }

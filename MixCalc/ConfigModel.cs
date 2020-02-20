@@ -176,6 +176,11 @@ namespace MixCalc
         {
             return Value * ScaleFactor;
         }
+
+        public double GetScaledWriteValue()
+        {
+            return WriteValue * ScaleFactor;
+        }
     }
 
     public class Measurement

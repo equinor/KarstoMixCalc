@@ -57,6 +57,20 @@ namespace MixCalc
             timer.Start();
         }
 
+        public void Stop()
+        {
+            logger.Info("Stop service command received.");
+            timer.Stop();
+            logger.Info("Waiting for current worker.");
+            lock (WorkerLock)
+            {
+                logger.Info("Worker is done.");
+                logger.Info("Disconnecting from OPC server.");
+                opcClient.DisConnect();
+            }
+            logger.Info("Stopping service.");
+        }
+
         private void Worker(object sender, ElapsedEventArgs ea)
         {
             lock (WorkerLock)
@@ -89,66 +103,249 @@ namespace MixCalc
             }
         }
 
-        private static double CheckGcStatus(List<TimeStampedMeasurement> gc)
+        private void ReadFromOPC()
         {
-            // 0 means good, 1 means bad
-            double gcStatus = 1.0;
-            foreach (var item in gc)
+            NodeIdCollection nodes = new NodeIdCollection();
+            List<Type> types = new List<Type>();
+            List<object> result = new List<object>();
+            List<ServiceResult> errors = new List<ServiceResult>();
+
+            // Make a list of all the OPC item that we want to read
+            foreach (var item in config.HistoryMeasurements.Item)
             {
-                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
-                // status value that is read from GC, 1000 means OK
-                if (item.Value > 999.9) gcStatus = 0.0;
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
             }
-            return gcStatus;
+
+            foreach (var item in config.AsgardMeasurements.Item)
+            {
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
+            }
+
+            foreach (var item in config.StatpipeMeasurements.Item)
+            {
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
+            }
+
+            foreach (var item in config.Validation.Item)
+            {
+                if (!item.Output)
+                {
+                    nodes.Add(item.Tag); types.Add(typeof(object));
+                }
+            }
+
+            foreach (var item in nodes)
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Item to read: \"{0}\"", item.ToString());
+            }
+
+            // Read all of the items
+            try
+            {
+                opcClient.OpcSession.ReadValues(nodes, types, out result, out errors);
+            }
+            catch (Exception e)
+            {
+                Status = 1.0;
+                logger.Error(e, "Error reading values from OPC.");
+            }
+
+            for (int n = 0; n < result.Count; n++)
+            {
+                logger.Debug(CultureInfo.InvariantCulture, "Item: \"{0}\" Value: \"{1}\" Status: \"{2}\"",
+                    nodes[n].ToString(), result[n], errors[n].StatusCode.ToString());
+            }
+
+            int it = 0;
+            foreach (var meas in config.HistoryMeasurements.Item)
+            {
+                if (!meas.Output)
+                {
+                    meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                    meas.TimeStamp = DateTime.Now;
+                    logger.Debug(CultureInfo.InvariantCulture,
+                        "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                        meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+                }
+            }
+
+            foreach (var meas in config.AsgardMeasurements.Item)
+            {
+                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                meas.TimeStamp = DateTime.Now;
+                logger.Debug(CultureInfo.InvariantCulture,
+                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+            }
+
+            foreach (var meas in config.StatpipeMeasurements.Item)
+            {
+                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                meas.TimeStamp = DateTime.Now;
+                logger.Debug(CultureInfo.InvariantCulture,
+                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+            }
+
+            foreach (var meas in config.Validation.Item)
+            {
+                if (!meas.Output)
+                {
+                    meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
+                    meas.TimeStamp = DateTime.Now;
+                    logger.Debug(CultureInfo.InvariantCulture,
+                        "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
+                        meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
+                }
+            }
         }
 
-        private void Validate()
+        private void CalculateVolumeFlow()
         {
-            // GC status
-            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AI2038 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
-            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM5626 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
-            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM0004 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
-            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC Kalstø status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value = CalculateAsgardVolumeFlow();
+            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value = CalculateStatpipeVolumeFlow();
 
-            // Mol flows
-            if (double.IsNaN(AsgardMolFlow) || double.IsNaN(StatpipeMolFlow) || double.IsNaN(StatpipeXoverMolFlow) || double.IsNaN(T100MolFlow))
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 volume flow")).Value = CalculateT400VolumeFlow(
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 diff pressure")).Value * 100.0,
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 density")).Value);
+
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 volume flow")).Value = CalculateT400VolumeFlow(
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 diff pressure")).Value * 100.0,
+                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 density")).Value);
+        }
+
+        private double CalculateAsgardVolumeFlow()
+        {
+            double massFlowBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow før x-over")).Value;
+            double densityBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density før x-over")).Value;
+            double massFlowXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow x-over")).Value;
+            double densityKarsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density Kårstø")).Value;
+            double densityKalsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density Kalstø")).Value;
+
+            // Convert from mass flow to diff pressure [mbar]
+            double dp = Math.Pow(massFlowBeforeXover * Math.Sqrt(350.0) / 3105.0, 2.0);
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard diff pressure before x-over {0} mbar", dp);
+
+            // Calculate mass flow before x-over [t/h]
+            massFlowBeforeXover = 1312.0 * Math.Sqrt(densityBeforeXover * dp * 100.0) / 1000.0;
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard corrected mass flow before x-over {0} t/h", massFlowBeforeXover);
+            // Store mass flow in history database
+            config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).Value = massFlowBeforeXover;
+            config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).TimeStamp = DateTime.Now;
+
+            // Calculate Åsgard mass flow [t/h]
+            double asgardMassFlow = massFlowBeforeXover + massFlowXover;
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard mass flow {0} t/h", asgardMassFlow);
+
+            // Calculate average density
+            double density = (densityKalsto + densityKarsto) / 2.0;
+            // Calculate Åsgard volume flow [m³/h]
+            double asgardVolumeFlow = 1000.0 * asgardMassFlow / density;
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard volume flow {0} m³/h", asgardVolumeFlow);
+
+            return asgardVolumeFlow;
+        }
+
+        private double CalculateStatpipeVolumeFlow()
+        {
+            double massFlowXover = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over")).Value;
+            double massFlowXoverSTP = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over STP")).Value;
+            double densityKarsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe density Kårstø")).Value;
+            double densityKalsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe density Kalstø")).Value;
+
+            // Sum mass flows [t/h]
+            if (massFlowXoverSTP < 0.0)
             {
-                Status = 1.0;
+                massFlowXoverSTP = 0.0;
             }
+            double massFlow = massFlowXover + massFlowXoverSTP;
 
-            // Volume flows
-            if (double.IsNaN(config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value) ||
-                double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value))
-            {
-                Status = 1.0;
-            }
+            // Calculate average density
+            double density = (densityKalsto + densityKarsto) / 2.0;
+            // Calculate Statpipe volume flow [m³/h]
+            double statpipeVolumeFlow = 1000.0 * massFlow / density;
+            logger.Debug(CultureInfo.InvariantCulture, "Statpipe volume flow {0} m³/h", statpipeVolumeFlow);
 
-            // Transport times
-            double ttAsgard = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value;
-            double ttStatpipe = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value;
-            if (double.IsNaN(ttAsgard) || double.IsNaN(ttStatpipe) || ttAsgard < 0.1 || ttStatpipe < 0.1)
-            {
-                Status = 1.0;
-            }
+            return statpipeVolumeFlow;
+        }
 
-            // Calculated delayed compositions
-            foreach (var item in config.AsgardComposition.Item)
+        private static double CalculateT400VolumeFlow(double diffPressure, double density)
+        {
+            return 235.41 * Math.Sqrt(diffPressure / density);
+        }
+
+        private void StoreHistoryMeasurements()
+        {
+            try
             {
-                if (double.IsNaN(item.WriteValue))
+                int storedRows = DataAccess.StoreValue(config.HistoryMeasurements.Item);
+                logger.Debug(CultureInfo.InvariantCulture,
+                    "Wrote {0} values to History database.", storedRows);
+                int clearedRows = DataAccess.ClearHistory(DateTime.Now.AddHours(-config.HistoryMeasurements.MaxAge));
+                if (clearedRows > 0)
                 {
-                    Status = 1.0;
+                    logger.Debug(CultureInfo.InvariantCulture,
+                        "Cleared {0} values that were older than {1} hours from History database.", clearedRows, config.HistoryMeasurements.MaxAge);
                 }
             }
-            foreach (var item in config.StatpipeComposition.Item)
+            catch (Exception e)
             {
-                if (double.IsNaN(item.WriteValue))
-                {
-                    Status = 1.0;
-                }
+                Status = 1.0;
+                logger.Error(e, "Error writing to History database");
+            }
+        }
+
+        private void CalculateDelays()
+        {
+            double asgardPipeVolume = 18085.0;
+            double statpipePipeVolume = 7901.0;
+            string asgardTag = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Tag;
+            string statpipeTag = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Tag;
+
+            TimeSpan asgardDelay = CalculateDelay(asgardTag, asgardPipeVolume);
+            logger.Debug(CultureInfo.InvariantCulture, "Åsgard delay: {0} h", asgardDelay.TotalHours);
+
+            TimeSpan statpipeDelay = CalculateDelay(statpipeTag, statpipePipeVolume);
+            logger.Debug(CultureInfo.InvariantCulture, "Statpipe delay: {0} h", statpipeDelay.TotalHours);
+
+            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value = asgardDelay.TotalHours;
+            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value = statpipeDelay.TotalHours;
+        }
+
+        private void ReadDelayedComposition()
+        {
+            var asgardDelay = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time"));
+            var asgardValues = DataAccess.GetValue(new List<string>(config.AsgardComposition.GetTags()), DateTime.Now.AddHours(-asgardDelay.Value));
+
+            int i = 0;
+            foreach (var item in asgardValues)
+            {
+                config.AsgardComposition.Item[i].WriteValue = item;
+                logger.Debug(CultureInfo.InvariantCulture, "Åsgard delayed composition tag {0}, value {1}",
+                    config.AsgardComposition.GetTags()[i], config.AsgardComposition.Item[i].WriteValue);
+                i++;
             }
 
-            config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = Status;
-            logger.Debug(CultureInfo.InvariantCulture, "Validation: status {0}", Status);
+            var statpipeDelay = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time"));
+            var statpipeValues = DataAccess.GetValue(new List<string>(config.StatpipeComposition.GetTags()), DateTime.Now.AddHours(-statpipeDelay.Value));
+
+            i = 0;
+            foreach (var item in statpipeValues)
+            {
+                config.StatpipeComposition.Item[i].WriteValue = item;
+                logger.Debug(CultureInfo.InvariantCulture, "Statpipe delayed composition tag {0}, value {1}",
+                    config.StatpipeComposition.GetTags()[i], config.StatpipeComposition.Item[i].WriteValue);
+                i++;
+            }
         }
 
         private void CalculateMix()
@@ -268,279 +465,54 @@ namespace MixCalc
                 }
             }
         }
-        private void ReadDelayedComposition()
+
+        private void Validate()
         {
-            var asgardDelay = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time"));
-            var asgardValues = DataAccess.GetValue(new List<string>(config.AsgardComposition.GetTags()), DateTime.Now.AddHours(-asgardDelay.Value));
+            // GC status
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AI2038 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM5626 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC 15AM0004 status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
+            if (CheckGcStatus(config.Validation.Item.FindAll(x => x.Name.StartsWith("GC Kalstø status", StringComparison.InvariantCulture))) > 0.5) Status = 1.0;
 
-            int i = 0;
-            foreach (var item in asgardValues)
-            {
-                config.AsgardComposition.Item[i].WriteValue = item;
-                logger.Debug(CultureInfo.InvariantCulture, "Åsgard delayed composition tag {0}, value {1}",
-                    config.AsgardComposition.GetTags()[i], config.AsgardComposition.Item[i].WriteValue);
-                i++;
-            }
-
-            var statpipeDelay = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time"));
-            var statpipeValues = DataAccess.GetValue(new List<string>(config.StatpipeComposition.GetTags()), DateTime.Now.AddHours(-statpipeDelay.Value));
-
-            i = 0;
-            foreach (var item in statpipeValues)
-            {
-                config.StatpipeComposition.Item[i].WriteValue = item;
-                logger.Debug(CultureInfo.InvariantCulture, "Statpipe delayed composition tag {0}, value {1}",
-                    config.StatpipeComposition.GetTags()[i], config.StatpipeComposition.Item[i].WriteValue);
-                i++;
-            }
-        }
-
-        private void CalculateVolumeFlow()
-        {
-            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value = CalculateAsgardVolumeFlow();
-            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value = CalculateStatpipeVolumeFlow();
-
-            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 volume flow")).Value = CalculateT400VolumeFlow(
-                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 diff pressure")).Value * 100.0,
-                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T410 density")).Value);
-
-            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 volume flow")).Value = CalculateT400VolumeFlow(
-                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 diff pressure")).Value * 100.0,
-                config.AsgardMeasurements.Item.Find(x => x.Name.Contains("T420 density")).Value);
-        }
-
-        private void CalculateDelays()
-        {
-            double asgardPipeVolume = 18085.0;
-            double statpipePipeVolume = 7901.0;
-            string asgardTag = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Tag;
-            string statpipeTag = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Tag;
-
-            TimeSpan asgardDelay = CalculateDelay(asgardTag, asgardPipeVolume);
-            logger.Debug(CultureInfo.InvariantCulture, "Åsgard delay: {0} h", asgardDelay.TotalHours);
-
-            TimeSpan statpipeDelay = CalculateDelay(statpipeTag, statpipePipeVolume);
-            logger.Debug(CultureInfo.InvariantCulture, "Statpipe delay: {0} h", statpipeDelay.TotalHours);
-
-            config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value = asgardDelay.TotalHours;
-            config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value = statpipeDelay.TotalHours;
-        }
-
-        private static TimeSpan CalculateDelay(string Tag, double PipeVolume)
-        {
-            DateTime timeStamp = DateTime.Now;
-            int i = 1;
-            DateTime t0 = DateTime.Now;
-            double volume = 0.0;
-            foreach (var m in DataAccess.GetValueSet(Tag))
-            {
-                if (i == 1)
-                {
-                    t0 = m.TimeStamp;
-                    i++;
-                    volume += m.Value;
-                    continue;
-                }
-
-                volume += m.Value;
-                double accumulatedVolume = (volume / (double)i) * (t0 - m.TimeStamp).TotalHours;
-
-                if (accumulatedVolume > PipeVolume)
-                {
-                    timeStamp = m.TimeStamp;
-                    break;
-                }
-                i++;
-            }
-
-            return (t0 - timeStamp);
-        }
-
-        private void ReadFromOPC()
-        {
-            NodeIdCollection nodes = new NodeIdCollection();
-            List<Type> types = new List<Type>();
-            List<object> result = new List<object>();
-            List<ServiceResult> errors = new List<ServiceResult>();
-
-            // Make a list of all the OPC item that we want to read
-            foreach (var item in config.HistoryMeasurements.Item)
-            {
-                if (!item.Output)
-                {
-                    nodes.Add(item.Tag); types.Add(typeof(object));
-                }
-            }
-
-            foreach (var item in config.AsgardMeasurements.Item)
-            {
-                if (!item.Output)
-                {
-                    nodes.Add(item.Tag); types.Add(typeof(object));
-                }
-            }
-
-            foreach (var item in config.StatpipeMeasurements.Item)
-            {
-                if (!item.Output)
-                {
-                    nodes.Add(item.Tag); types.Add(typeof(object));
-                }
-            }
-
-            foreach (var item in config.Validation.Item)
-            {
-                if (!item.Output)
-                {
-                    nodes.Add(item.Tag); types.Add(typeof(object));
-                }
-            }
-
-            foreach (var item in nodes)
-            {
-                logger.Debug(CultureInfo.InvariantCulture, "Item to read: \"{0}\"", item.ToString());
-            }
-
-            // Read all of the items
-            try
-            {
-                opcClient.OpcSession.ReadValues(nodes, types, out result, out errors);
-            }
-            catch (Exception e)
+            // Mol flows
+            if (double.IsNaN(AsgardMolFlow) || double.IsNaN(StatpipeMolFlow) || double.IsNaN(StatpipeXoverMolFlow) || double.IsNaN(T100MolFlow))
             {
                 Status = 1.0;
-                logger.Error(e, "Error reading values from OPC.");
             }
 
-            for (int n = 0; n < result.Count; n++)
-            {
-                logger.Debug(CultureInfo.InvariantCulture, "Item: \"{0}\" Value: \"{1}\" Status: \"{2}\"",
-                    nodes[n].ToString(), result[n], errors[n].StatusCode.ToString());
-            }
-
-            int it = 0;
-            foreach (var meas in config.HistoryMeasurements.Item)
-            {
-                if (!meas.Output)
-                {
-                    meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
-                    meas.TimeStamp = DateTime.Now;
-                    logger.Debug(CultureInfo.InvariantCulture,
-                        "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
-                        meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
-                }
-            }
-
-            foreach (var meas in config.AsgardMeasurements.Item)
-            {
-                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
-                meas.TimeStamp = DateTime.Now;
-                logger.Debug(CultureInfo.InvariantCulture,
-                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
-                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
-            }
-
-            foreach (var meas in config.StatpipeMeasurements.Item)
-            {
-                meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
-                meas.TimeStamp = DateTime.Now;
-                logger.Debug(CultureInfo.InvariantCulture,
-                    "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
-                    meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
-            }
-
-            foreach (var meas in config.Validation.Item)
-            {
-                if (!meas.Output)
-                {
-                    meas.Value = Convert.ToDouble(result[it++], CultureInfo.InvariantCulture);
-                    meas.TimeStamp = DateTime.Now;
-                    logger.Debug(CultureInfo.InvariantCulture,
-                        "Measurement: \"{0}\" Value: {1} TimeStamp: {2} Tag: \"{3}\"",
-                        meas.Name, meas.Value, meas.TimeStamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture), meas.Tag);
-                }
-            }
-        }
-
-        private void StoreHistoryMeasurements()
-        {
-            try
-            {
-                int storedRows = DataAccess.StoreValue(config.HistoryMeasurements.Item);
-                logger.Debug(CultureInfo.InvariantCulture,
-                    "Wrote {0} values to History database.", storedRows);
-                int clearedRows = DataAccess.ClearHistory(DateTime.Now.AddHours(-config.HistoryMeasurements.MaxAge));
-                if (clearedRows > 0)
-                {
-                    logger.Debug(CultureInfo.InvariantCulture,
-                        "Cleared {0} values that were older than {1} hours from History database.", clearedRows, config.HistoryMeasurements.MaxAge);
-                }
-            }
-            catch (Exception e)
+            // Volume flows
+            if (double.IsNaN(config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard volume flow")).Value) ||
+                double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value))
             {
                 Status = 1.0;
-                logger.Error(e, "Error writing to History database");
             }
-        }
 
-        private static double CalculateT400VolumeFlow(double diffPressure, double density)
-        {
-            return 235.41 * Math.Sqrt(diffPressure / density);
-        }
-
-        private double CalculateAsgardVolumeFlow()
-        {
-            double massFlowBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow før x-over")).Value;
-            double densityBeforeXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density før x-over")).Value;
-            double massFlowXover = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard mass flow x-over")).Value;
-            double densityKarsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density Kårstø")).Value;
-            double densityKalsto = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard density Kalstø")).Value;
-
-            // Convert from mass flow to diff pressure [mbar]
-            double dp = Math.Pow(massFlowBeforeXover * Math.Sqrt(350.0) / 3105.0, 2.0);
-            logger.Debug(CultureInfo.InvariantCulture, "Åsgard diff pressure before x-over {0} mbar", dp);
-
-            // Calculate mass flow before x-over [t/h]
-            massFlowBeforeXover = 1312.0 * Math.Sqrt(densityBeforeXover * dp * 100.0) / 1000.0;
-            logger.Debug(CultureInfo.InvariantCulture, "Åsgard corrected mass flow before x-over {0} t/h", massFlowBeforeXover);
-            // Store mass flow in history database
-            config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).Value = massFlowBeforeXover;
-            config.HistoryMeasurements.Item.Find(x => x.Name.Contains("Åsgard corrected mass flow før x-over")).TimeStamp = DateTime.Now;
-
-            // Calculate Åsgard mass flow [t/h]
-            double asgardMassFlow = massFlowBeforeXover + massFlowXover;
-            logger.Debug(CultureInfo.InvariantCulture, "Åsgard mass flow {0} t/h", asgardMassFlow);
-
-            // Calculate average density
-            double density = (densityKalsto + densityKarsto) / 2.0;
-            // Calculate Åsgard volume flow [m³/h]
-            double asgardVolumeFlow = 1000.0 * asgardMassFlow / density;
-            logger.Debug(CultureInfo.InvariantCulture, "Åsgard volume flow {0} m³/h", asgardVolumeFlow);
-
-            return asgardVolumeFlow;
-        }
-
-        private double CalculateStatpipeVolumeFlow()
-        {
-            double massFlowXover = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over")).Value;
-            double massFlowXoverSTP = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe mass flow x-over STP")).Value;
-            double densityKarsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe density Kårstø")).Value;
-            double densityKalsto = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe density Kalstø")).Value;
-
-            // Sum mass flows [t/h]
-            if (massFlowXoverSTP < 0.0)
+            // Transport times
+            double ttAsgard = config.AsgardMeasurements.Item.Find(x => x.Name.Contains("Åsgard transport time")).Value;
+            double ttStatpipe = config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe transport time")).Value;
+            if (double.IsNaN(ttAsgard) || double.IsNaN(ttStatpipe) || ttAsgard < 0.1 || ttStatpipe < 0.1)
             {
-                massFlowXoverSTP = 0.0;
+                Status = 1.0;
             }
-            double massFlow = massFlowXover + massFlowXoverSTP;
 
-            // Calculate average density
-            double density = (densityKalsto + densityKarsto) / 2.0;
-            // Calculate Statpipe volume flow [m³/h]
-            double statpipeVolumeFlow = 1000.0 * massFlow / density;
-            logger.Debug(CultureInfo.InvariantCulture, "Statpipe volume flow {0} m³/h", statpipeVolumeFlow);
+            // Calculated delayed compositions
+            foreach (var item in config.AsgardComposition.Item)
+            {
+                if (double.IsNaN(item.WriteValue))
+                {
+                    Status = 1.0;
+                }
+            }
+            foreach (var item in config.StatpipeComposition.Item)
+            {
+                if (double.IsNaN(item.WriteValue))
+                {
+                    Status = 1.0;
+                }
+            }
 
-            return statpipeVolumeFlow;
+            config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = Status;
+            logger.Debug(CultureInfo.InvariantCulture, "Validation: status {0}", Status);
         }
 
         private void WriteToOPC()
@@ -679,18 +651,48 @@ namespace MixCalc
             }
         }
 
-        public void Stop()
+
+        private static double CheckGcStatus(List<TimeStampedMeasurement> gc)
         {
-            logger.Info("Stop service command received.");
-            timer.Stop();
-            logger.Info("Waiting for current worker.");
-            lock (WorkerLock)
+            // 0 means good, 1 means bad
+            double gcStatus = 1.0;
+            foreach (var item in gc)
             {
-                logger.Info("Worker is done.");
-                logger.Info("Disconnecting from OPC server.");
-                opcClient.DisConnect();
+                logger.Debug(CultureInfo.InvariantCulture, "Validation: {0}: {1}", item.Name, item.Value);
+                // status value that is read from GC, 1000 means OK
+                if (item.Value > 999.9) gcStatus = 0.0;
             }
-            logger.Info("Stopping service.");
+            return gcStatus;
+        }
+
+        private static TimeSpan CalculateDelay(string Tag, double PipeVolume)
+        {
+            DateTime timeStamp = DateTime.Now;
+            int i = 1;
+            DateTime t0 = DateTime.Now;
+            double volume = 0.0;
+            foreach (var m in DataAccess.GetValueSet(Tag))
+            {
+                if (i == 1)
+                {
+                    t0 = m.TimeStamp;
+                    i++;
+                    volume += m.Value;
+                    continue;
+                }
+
+                volume += m.Value;
+                double accumulatedVolume = (volume / (double)i) * (t0 - m.TimeStamp).TotalHours;
+
+                if (accumulatedVolume > PipeVolume)
+                {
+                    timeStamp = m.TimeStamp;
+                    break;
+                }
+                i++;
+            }
+
+            return (t0 - timeStamp);
         }
     }
 }

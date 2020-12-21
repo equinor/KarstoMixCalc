@@ -6,7 +6,7 @@
 >
   <ApplicationName>MixCalc Client</ApplicationName>
   <ApplicationUri>urn:localhost:OPCFoundation:MixCalcClient</ApplicationUri>
-  <ProductUri>http://opcfoundation.org/UA/PhaseOptDcsClient</ProductUri>
+  <ProductUri>http://opcfoundation.org/UA/MixCalcClient</ProductUri>
   <ApplicationType>Client_1</ApplicationType>
 
   <SecurityConfiguration>
@@ -15,7 +15,7 @@
     <ApplicationCertificate>
       <StoreType>Directory</StoreType>
       <StorePath>%CommonApplicationData%\OPC Foundation\pki\own</StorePath>
-      <SubjectName>CN=PhaseOptDcs Client, C=NO, O=Equinor, DC=localhost</SubjectName>
+      <SubjectName>CN=MixCalc Client, C=NO, O=Equinor, DC=localhost</SubjectName>
     </ApplicationCertificate>
 
     <!-- Where the issuer certificate are stored (certificate authorities) -->

@@ -503,6 +503,10 @@ namespace MixCalc
                     Status = 1.0;
                 }
             }
+
+            if (!CheckComposition(config.AsgardComposition))
+                Status = 1.0;
+
             foreach (var item in config.StatpipeComposition.Item)
             {
                 if (double.IsNaN(item.WriteValue))
@@ -693,6 +697,31 @@ namespace MixCalc
             }
 
             return (t0 - timeStamp);
+        }
+
+        private static bool CheckComposition(CompositionList composition)
+        {
+            bool result = true;
+            double expectedSum = 100.0;
+            double sumDeviationLimit = 1.0;
+            double sum = 0.0;
+            double lowerLimit = 1.0e-9;
+            int componentsBelowLowerLimit = 0;
+            int allowedBelowLowerLimit = 0;
+
+            foreach (var c in composition.Item)
+            {
+                sum += c.Value;
+                if (c.Value < lowerLimit)
+                    componentsBelowLowerLimit++;
+            }
+
+            if (Math.Abs(expectedSum - sum) > sumDeviationLimit)
+                result = false;
+            if (componentsBelowLowerLimit > allowedBelowLowerLimit)
+                result = false;
+
+            return result;
         }
     }
 }

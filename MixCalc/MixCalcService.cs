@@ -478,6 +478,7 @@ namespace MixCalc
             if (double.IsNaN(AsgardMolFlow) || double.IsNaN(StatpipeMolFlow) || double.IsNaN(StatpipeXoverMolFlow) || double.IsNaN(T100MolFlow))
             {
                 Status = 1.0;
+                logger.Warn(CultureInfo.InvariantCulture, "Validation: problem calculating mol flows.");
             }
 
             // Volume flows
@@ -485,6 +486,7 @@ namespace MixCalc
                 double.IsNaN(config.StatpipeMeasurements.Item.Find(x => x.Name.Contains("Statpipe volume flow")).Value))
             {
                 Status = 1.0;
+                logger.Warn(CultureInfo.InvariantCulture, "Validation: problem calculating volume flows.");
             }
 
             // Transport times
@@ -493,26 +495,20 @@ namespace MixCalc
             if (double.IsNaN(ttAsgard) || double.IsNaN(ttStatpipe) || ttAsgard < 0.1 || ttStatpipe < 0.1)
             {
                 Status = 1.0;
+                logger.Warn(CultureInfo.InvariantCulture, "Validation: problem calculating transport times.");
             }
 
             // Calculated delayed compositions
-            foreach (var item in config.AsgardComposition.Item)
+            if (!CheckComposition(config.AsgardComposition))
             {
-                if (double.IsNaN(item.WriteValue))
-                {
-                    Status = 1.0;
-                }
+                Status = 1.0;
+                logger.Warn(CultureInfo.InvariantCulture, "Validation: problem with calculated Åsgard composition.");
             }
 
-            if (!CheckComposition(config.AsgardComposition))
-                Status = 1.0;
-
-            foreach (var item in config.StatpipeComposition.Item)
+            if (!CheckComposition(config.StatpipeComposition))
             {
-                if (double.IsNaN(item.WriteValue))
-                {
-                    Status = 1.0;
-                }
+                Status = 1.0;
+                logger.Warn(CultureInfo.InvariantCulture, "Validation: problem with calculated Statpipe composition.");
             }
 
             config.Validation.Item.Find(x => x.Name.Contains("PhaseOpt status")).Value = Status;
@@ -711,6 +707,9 @@ namespace MixCalc
 
             foreach (var c in composition.Item)
             {
+                if (double.IsNaN(c.Value))
+                    result = false;
+
                 sum += c.Value;
                 if (c.Value < lowerLimit)
                     componentsBelowLowerLimit++;
